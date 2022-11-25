@@ -23,15 +23,24 @@ from math import sqrt
 
 """ Data Processing """
 # importing dataset 
-df = pd.read_csv(r"C:\Git\Time-Series-Forecasting\Data\raw\SNPTSX.csv")
+df = pd.read_csv(r"C:\Git\Time-Series-Forecasting\Data\raw\AirPassengers.csv")
 
-df.head(5)
+#df.head(5)
+#df.info()
+
+df['Date'] = pd.to_datetime(df['Month']) # converting to date format
+df = df.drop(columns = 'Month') # dropping month column
+df.set_index('Date', inplace=True) # setting the Date as index of the data frame
+df = df.rename(columns = {'#Passengers':'Passengers'}) # renaming column
+df = df.asfreq('m') # setting index freq as monthly
+
+
 
 df['Date'] = pd.to_datetime(df['Date']) # convert the Date column type
 df.set_index('Date', inplace=True) # setting the Date as index of the data frame
 df = df.asfreq('d') # setting index freq as daily
 
-df.info()
+
 
 # filling missing value by interpolating between nearest 2 points
 for i in df.columns:
@@ -414,7 +423,7 @@ Model_results.append(['Encode_De_LSTM', RMSE, train_time, test_time])
 """ Evaluation """
 
 # plotting the Forecasts
-plt.figure(figsize=(14,8))
+plt.figure(figsize=(14,5))
 plt.plot(df_test["Adj Close"], label="Test Data")
 plt.plot(df_test["SARIMA"], color='cyan', label="SARIMA Forecast")
 plt.plot(df_test["RNN"], color='lawngreen', label="RNN Forecast")
@@ -424,7 +433,6 @@ plt.plot(df_test["Bidirect_LSTM"], color='violet', label="Bidirectional LSTM For
 plt.plot(df_test["CNN_LSTM"], color='brown', label="CNN LSTM Forecast")
 plt.plot(df_test["Encode_De_LSTM"], color='teal', label="Encoder Decoder LSTM Forecast")
 plt.legend(loc='best')
-plt.title("Model Output: Actual vs Forecasted")
 plt.tight_layout()
 
 df_results = pd.DataFrame(Model_results, columns=["Model","RMSE","Train_time","Test_time"])
@@ -433,13 +441,9 @@ df_results = pd.DataFrame(Model_results, columns=["Model","RMSE","Train_time","T
 plt.figure(figsize=(8,5))
 plt.bar(df_results['Model'],df_results['RMSE'])
 plt.legend(loc='best')
-plt.title("Model Accuracy: RMSE")
-plt.xticks(rotation = 45)
 plt.tight_layout()
 
-df_results.to_csv(r"C:\Git\Time-Series-Forecasting\Data\raw\SNPTSX_Output_2.csv", index=False)
-
-
+print(df_results)
 
 """ 
 *** Observations ***

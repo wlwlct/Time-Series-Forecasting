@@ -12,6 +12,10 @@ import matplotlib.pyplot as plt
 
 from sklearn.preprocessing import MinMaxScaler
 
+import time
+from datetime import datetime
+from statsmodels.tsa.arima.model import ARIMA, ARIMAResults
+
 import tensorflow as tf
 
 from sklearn.metrics import mean_squared_error
@@ -68,6 +72,28 @@ n_steps_in, n_steps_out = 50, 30
 # split train and test
 df_train = df[:-n_steps_out]
 df_test = df[-n_steps_out:]
+
+min_train_date = df_train.index.min().strftime("%Y-%m-%d")
+max_train_date = df_train.index.max().strftime("%Y-%m-%d")
+
+min_test_date = df_test.index.min().strftime("%Y-%m-%d")
+max_test_date = df_test.index.max().strftime("%Y-%m-%d")
+
+""" Seasonal ARIMA (SARIMA) """
+
+# defining SARIMA
+model = ARIMA(df_train["log_adj_close"], order=(11, 1, 1), seasonal_order=(11,1,1,30)).fit()  # order=(p, d, q)
+print(model.summary())
+
+residuals = pd.DataFrame(model.resid)
+print(residuals.describe())
+
+# predicting future steps
+forecast = model.predict(start=min_test_date, end=max_test_date)
+
+df_test['SARIMA'] = np.exp(forecast)
+
+
  
 # converting to numpy array
 index = np.array(df_train["scaled_adj_close"])
@@ -99,25 +125,30 @@ X, y = split_sequence(index, n_steps_in, n_steps_out)
 n_features = 1
 X = X.reshape((X.shape[0], X.shape[1], n_features))
 
+# hyperparameter 
+LSTM_units = 100
+epochs_no = 100 
+patience_level = 5
+
 """ Vanilla LSTM """
 # defining LSTM model
 model = tf.keras.models.Sequential()
-model.add(tf.keras.layers.LSTM(100, activation='relu', input_shape=(n_steps_in, n_features)))
+model.add(tf.keras.layers.LSTM(LSTM_units, activation='relu', input_shape=(n_steps_in, n_features)))
 model.add(tf.keras.layers.Dense(n_steps_out))
 model.compile(optimizer='adam', loss='mse')
 
 # defining early stopping 
-callback = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=2)
+callback = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=patience_level)
 
 # fit model
-model.fit(X, y, epochs=50, verbose=1, callbacks=(callback))
+model.fit(X, y, epochs=epochs_no, verbose=1, callbacks=(callback))
 
 
 # predicting future steps
 x_input = index[-n_steps_in:]
 x_input = x_input.reshape((1, n_steps_in, n_features))
 forecasted = model.predict(x_input, verbose=0)
-print(forecasted)
+#print(forecasted)
 
 #df_test['scaled_forecast'] = forecasted.flatten()
 #df_test['forecast'] = scaler.inverse_transform(np.expand_dims(df_test["scaled_forecast"].values, axis=1))
@@ -126,23 +157,23 @@ df_test['vanilla_LSTM_fcst'] = scaler.inverse_transform(np.expand_dims(forecaste
 """ Stacked LSTM """
 # defining Stacked LSTM model
 model = tf.keras.models.Sequential()
-model.add(tf.keras.layers.LSTM(100, activation='relu', return_sequences=True, input_shape=(n_steps_in, n_features)))
-model.add(tf.keras.layers.LSTM(100, activation='relu'))
+model.add(tf.keras.layers.LSTM(LSTM_units, activation='relu', return_sequences=True, input_shape=(n_steps_in, n_features)))
+model.add(tf.keras.layers.LSTM(LSTM_units, activation='relu'))
 model.add(tf.keras.layers.Dense(n_steps_out))
 model.compile(optimizer='adam', loss='mse')
 
 # defining early stopping 
-callback = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=2)
+callback = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=patience_level)
 
 # fit model
-model.fit(X, y, epochs=50, verbose=1, callbacks=(callback))
+model.fit(X, y, epochs=epochs_no, verbose=1, callbacks=(callback))
 
 
 # predicting future steps
 x_input = index[-n_steps_in:]
 x_input = x_input.reshape((1, n_steps_in, n_features))
 forecasted = model.predict(x_input, verbose=0)
-print(forecasted)
+#print(forecasted)
 
 #df_test['scaled_forecast'] = forecasted.flatten()
 #df_test['forecast'] = scaler.inverse_transform(np.expand_dims(df_test["scaled_forecast"].values, axis=1))
@@ -151,23 +182,23 @@ df_test['stacked_LSTM_fcst'] = scaler.inverse_transform(np.expand_dims(forecaste
 """ Bidirectional LSTM """
 # defining Stacked LSTM model
 model = tf.keras.models.Sequential()
-model.add(tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(100, activation='relu', input_shape=(n_steps_in, n_features))))
-model.add(tf.keras.layers.LSTM(100, activation='relu'))
+model.add(tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(LSTM_units, activation='relu', input_shape=(n_steps_in, n_features))))
+#model.add(tf.keras.layers.LSTM(100, activation='relu'))
 model.add(tf.keras.layers.Dense(n_steps_out))
 model.compile(optimizer='adam', loss='mse')
 
 # defining early stopping 
-callback = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=2)
+callback = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=patience_level)
 
 # fit model
-model.fit(X, y, epochs=50, verbose=1, callbacks=(callback))
+model.fit(X, y, epochs=epochs_no, verbose=1, callbacks=(callback))
 
 
 # predicting future steps
 x_input = index[-n_steps_in:]
 x_input = x_input.reshape((1, n_steps_in, n_features))
 forecasted = model.predict(x_input, verbose=0)
-print(forecasted)
+#print(forecasted)
 
 #df_test['scaled_forecast'] = forecasted.flatten()
 #df_test['forecast'] = scaler.inverse_transform(np.expand_dims(df_test["scaled_forecast"].values, axis=1))
@@ -175,21 +206,47 @@ df_test['bidirect_LSTM_fcst'] = scaler.inverse_transform(np.expand_dims(forecast
 
 """ Evaluation """
 
-# plotting the results
+# plotting the Forecasts
 plt.figure(figsize=(14,5))
 plt.plot(df_test["Adj Close"], label="Test Data")
-plt.plot(df_test["vanilla_LSTM_fcst"], color='pink', label="Vanilla LSTM Forecasted")
-plt.plot(df_test["stacked_LSTM_fcst"], color='green', label="Stacked LSTM Forecasted")
+plt.plot(df_test["SARIMA"], color='cyan', label="SARIMA Forecast")
+plt.plot(df_test["vanilla_LSTM_fcst"], color='pink', label="Vanilla LSTM Forecast")
+plt.plot(df_test["stacked_LSTM_fcst"], color='green', label="Stacked LSTM Forecast")
+plt.plot(df_test["bidirect_LSTM_fcst"], color='violet', label="Bidirectional LSTM Forecast")
 plt.legend(loc='best')
 plt.tight_layout()
 
 # calculating RMSE
 list_RMSE = {
-    "Method": ["Vanilla LSTM", 
-               "Stacked LSTM"],
-    "RMSE": [sqrt(mean_squared_error(df_test['Adj Close'], df_test['vanilla_LSTM_fcst'])),
-             sqrt(mean_squared_error(df_test['Adj Close'], df_test['stacked_LSTM_fcst']))]
+    "Method": ["SARIMA",
+               "Vanilla LSTM", 
+               "Stacked LSTM",
+               "Bidirectional LSTM"
+               ],
+    "RMSE": [sqrt(mean_squared_error(df_test['Adj Close'], df_test['SARIMA'])),
+             sqrt(mean_squared_error(df_test['Adj Close'], df_test['vanilla_LSTM_fcst'])),
+             sqrt(mean_squared_error(df_test['Adj Close'], df_test['stacked_LSTM_fcst'])),
+             sqrt(mean_squared_error(df_test['Adj Close'], df_test['bidirect_LSTM_fcst']))
+             ]
     }
 
-df_RMSE = pd.DataFrame(RMSE_list)
+df_RMSE = pd.DataFrame(list_RMSE)
 
+# plotting the RMSE 
+plt.figure(figsize=(8,5))
+plt.bar(df_RMSE['Method'],df_RMSE['RMSE'], color = ['cyan', 'pink', 'green', 'violet' ])
+plt.legend(loc='best')
+plt.tight_layout()
+
+df_RMSE.head(10)
+
+""" 
+*** Observations ***
+1. "LSTM units: dimensionality of the output space" plays a crucial role in forecating. 
+More units give better RMSE measures
+
+2. Stacked LSTM model is more stable than Vanilla or Bidirectional LSTM in this case 
+(Stable RMSE measures for different runs and hyperparameter tuning)  
+
+3. Learning rate increased with epochs  
+"""
