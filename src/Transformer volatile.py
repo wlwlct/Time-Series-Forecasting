@@ -20,9 +20,12 @@
 # 
 # 
 # 
-# Reference: https://www.simplilearn.com/keras-vs-tensorflow-vs-pytorch-article#:~:text=TensorFlow%20offers%20better%20visualization%2C%20which,to%20the%20TensorFlow%20Serving%20framework.
+# Reference: 
+# https://www.simplilearn.com/keras-vs-tensorflow-vs-pytorch-article#:~:text=TensorFlow%20offers%20better%20visualization%2C%20which,to%20the%20TensorFlow%20Serving%20framework.
+# http://nlp.seas.harvard.edu/2018/04/03/attention.html
+# https://www.linkedin.com/pulse/how-i-turned-nlp-transformer-time-series-predictor-zimbres-phd/ 
 
-# %% [markdown]
+# %%
 # ### Import package
 
 # %%
@@ -42,13 +45,15 @@ import math, copy, time
 from torch.autograd import Variable
 import matplotlib.pyplot as plt
 import seaborn
+import torch.nn.functional as F
+
 
 from sklearn.metrics import mean_squared_error
 
 
 seaborn.set_context(context="talk")
 
-# %% [markdown]
+# %%
 # ## Generate Train and Test
 
 # %%
@@ -65,13 +70,15 @@ dataset = np.array(dataset.astype('float32')).reshape(-1,1)
 # %%
 plt.plot(dataset)
 
-# %% [markdown]
+# %% 
 # ## Train Model
 
 # %%
 def norm(x):
+    """min-max normalization"""
     return (x-np.min(x))/(np.max(x)-np.min(x))
 
+# normalize dataset and split data into train and test
 dataset=norm(dataset)
 
 look_back=8
@@ -100,6 +107,7 @@ X0=X0.reshape(X0.shape[0],X0.shape[1],1).astype(np.float32)
 Y0=Y0.reshape(Y0.shape[0],Y0.shape[1],1).astype(np.float32)
 
 # %%
+# Define class and functions for building transformer. 
 
 class EncoderDecoder(nn.Module):
     """
@@ -124,7 +132,7 @@ class EncoderDecoder(nn.Module):
     
     def decode(self, memory, src_mask, tgt, tgt_mask):
         return self.decoder(self.tgt_embed(tgt), memory, src_mask, tgt_mask)
-import torch.nn.functional as F
+
 
 class Generator(nn.Module):
     "Define standard linear + softmax generation step."
@@ -455,6 +463,7 @@ class SimpleLossCompute:
         return loss.data #* norm
 
 # %%
+# start to train the model
 print(torch.__version__)
 
 V = 200
@@ -476,6 +485,7 @@ for epoch in range(60):
 
 
 # %%
+# generate the error vs. epochs
 plt.plot(list(error_cov.keys())[-20:], list(error_cov.values())[-20:])
 
 # %%
@@ -491,6 +501,7 @@ def greedy_decode(model, src, src_mask, max_len, start_symbol):
     return prob
 
 # %%
+# save model
 PATH = './pytorch_time_series_model_loss_OK_norm.pth'
 
 torch.save(model.state_dict(), PATH)
@@ -502,6 +513,7 @@ X0=X0.reshape(X0.shape[0],X0.shape[1],1).astype(np.float32)
 Y0=Y0.reshape(Y0.shape[0],Y0.shape[1],1).astype(np.float32)
 
 # %%
+# input a sequence and test a single value
 X0.shape, Y0.shape
 
 # %%
@@ -538,6 +550,7 @@ plt.show()
 
 # %% [markdown]
 # ### Predict from test data
+# input a sequence and test a single value, repeat the process using the input from the test data.
 
 # %%
 model.load_state_dict(torch.load(PATH))
@@ -576,6 +589,7 @@ plt.plot(pred)
 
 # %% [markdown]
 # ### Predict from the last point
+# use the last point of test data and predicted data as input to predict 1 following value.
 
 # %%
 model.load_state_dict(torch.load(PATH))
