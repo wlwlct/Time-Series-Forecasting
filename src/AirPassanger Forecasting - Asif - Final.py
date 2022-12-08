@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
 
 import time
-from datetime import datetime
+import datetime 
 from statsmodels.tsa.arima.model import ARIMA, ARIMAResults
 
 import tensorflow as tf
@@ -28,50 +28,31 @@ df = pd.read_csv(r"C:\Git\Time-Series-Forecasting\Data\raw\AirPassengers.csv")
 #df.head(5)
 #df.info()
 
-df['Date'] = pd.to_datetime(df['Month']) # converting to date format
+df['Date'] = pd.to_datetime(df['Month'], infer_datetime_format=True) # converting to date format
 df = df.drop(columns = 'Month') # dropping month column
-df.set_index('Date', inplace=True) # setting the Date as index of the data frame
 df = df.rename(columns = {'#Passengers':'Passengers'}) # renaming column
-df = df.asfreq('m') # setting index freq as monthly
-
-
-
-df['Date'] = pd.to_datetime(df['Date']) # convert the Date column type
 df.set_index('Date', inplace=True) # setting the Date as index of the data frame
-df = df.asfreq('d') # setting index freq as daily
+#df = df.asfreq('m') # setting index freq as monthly
 
+#df.head(5)
+#df.info()
 
-
-# filling missing value by interpolating between nearest 2 points
-for i in df.columns:
-    df[i] = df[i].interpolate(option='linear')    
-    
 df.isna().any()
-
 df.describe()
 
 # Time Series Visualization
 plt.figure(figsize=(20,5))
-plt.plot(df['Adj Close'])
+plt.plot(df['Passengers'])
 
-# trim dataset
-#df = df.loc['2012-10-16':'2018-12-31']
-df = df.loc['2016-01-01':'2017-01-31']
-df.info()
-
-df.index
-
-plt.figure(figsize=(20,5))
-plt.plot(df['Adj Close'])
 
 # scaling data 
 # converting to log > differncing 
-df["log_adj_close"] = np.log(df["Adj Close"])
-df["diff_log_adj_close"] = df["log_adj_close"] - df["log_adj_close"].shift()
+df["log_Passengers"] = np.log(df["Passengers"])
+df["diff_log_Passengers"] = df["log_Passengers"] - df["log_Passengers"].shift()
 
 # scaling data 
 scaler = MinMaxScaler()
-df["scaled_adj_close"] = scaler.fit_transform(np.expand_dims(df["Adj Close"].values, axis=1))
+df["scaled_Passengers"] = scaler.fit_transform(np.expand_dims(df["Passengers"].values, axis=1))
 
 df.describe()
 
@@ -90,7 +71,7 @@ max_test_date = df_test.index.max().strftime("%Y-%m-%d")
 
 
 """ Seasonal ARIMA (SARIMA) """
-def forecast_SARIMA(train_data, test_data, p, d, q, s):
+def forecast_SARIMA(train_data, n_steps_out, p, d, q, s):
 
     # defining SARIMA
     t1 = time.time()
@@ -102,18 +83,23 @@ def forecast_SARIMA(train_data, test_data, p, d, q, s):
     #print(residuals.describe())
     
     # extracting min and max date 
-    min_test_date = df_test.index.min().strftime("%Y-%m-%d")
-    max_test_date = df_test.index.max().strftime("%Y-%m-%d")
+    min_test_date = train_data.index.max()+timedelta(days=1)
+    max_test_date = train_data.index.max()+timedelta(days=n_steps_out)
+    
+    min_test_dt = min_test_date.strftime("%Y-%m-%d")
+    max_test_dt = max_test_date.strftime("%Y-%m-%d")
+    print(min_test_dt)
+    print(max_test_dt)
     
     # predicting future steps
     t1 = time.time()
-    forecast = model.predict(start=min_test_date, end=max_test_date)
+    forecast = model.predict(start=min_test_dt, end=max_test_dt)
     test_time = time.time()-t1
     
     return np.exp(forecast), train_time, test_time
 
 # spliting a univariate sequence into samples
-def split_sequence(sequence, n_steps_in, n_steps_out):
+def split_steps_in_out(sequence, n_steps_in, n_steps_out):
 	X, y = list(), list()
 	for i in range(len(sequence)):
 		# find the end of this pattern
@@ -136,7 +122,7 @@ def forecast_RNN(train_data, n_steps_in, n_steps_out, n_features, units, epochs,
     index = np.array(train_data)
     
     # split into samples
-    X, y = split_sequence(index, n_steps_in, n_steps_out)
+    X, y = split_steps_in_out(index, n_steps_in, n_steps_out)
     
     # reshaping input from [samples, timesteps] into [samples, timesteps, features]
     X = X.reshape((X.shape[0], X.shape[1], n_features))
@@ -174,7 +160,7 @@ def forecast_Vanilla_LSTM(train_data, n_steps_in, n_steps_out, n_features, units
     index = np.array(train_data)
     
     # split into samples
-    X, y = split_sequence(index, n_steps_in, n_steps_out)
+    X, y = split_steps_in_out(index, n_steps_in, n_steps_out)
     
     # reshaping input from [samples, timesteps] into [samples, timesteps, features]
     X = X.reshape((X.shape[0], X.shape[1], n_features))
@@ -211,7 +197,7 @@ def forecast_Stacked_LSTM(train_data, n_steps_in, n_steps_out, n_features, units
     index = np.array(train_data)
     
     # split into samples
-    X, y = split_sequence(index, n_steps_in, n_steps_out)
+    X, y = split_steps_in_out(index, n_steps_in, n_steps_out)
     
     # reshaping input from [samples, timesteps] into [samples, timesteps, features]
     X = X.reshape((X.shape[0], X.shape[1], n_features))
@@ -249,7 +235,7 @@ def forecast_Bidirect_LSTM(train_data, n_steps_in, n_steps_out, n_features, unit
     index = np.array(train_data)
     
     # split into samples
-    X, y = split_sequence(index, n_steps_in, n_steps_out)
+    X, y = split_steps_in_out(index, n_steps_in, n_steps_out)
     
     # reshaping input from [samples, timesteps] into [samples, timesteps, features]
     X = X.reshape((X.shape[0], X.shape[1], n_features))   
@@ -287,7 +273,7 @@ def forecast_CNN_LSTM(train_data, n_steps_in, n_steps_out, n_features, n_seq, un
     index = np.array(train_data)
     
     # split into samples
-    X, y = split_sequence(index, n_steps_in, n_steps_out)
+    X, y = split_steps_in_out(index, n_steps_in, n_steps_out)
     
     # reshaping from [samples, timesteps] into [samples, subsequences, timesteps, features]
     
@@ -329,7 +315,7 @@ def forecast_Encode_De_LSTM(train_data, n_steps_in, n_steps_out, n_features, uni
     index = np.array(train_data)
     
     # split into samples
-    X, y = split_sequence(index, n_steps_in, n_steps_out)
+    X, y = split_steps_in_out(index, n_steps_in, n_steps_out)
     
     # reshaping from [samples, timesteps] into [samples, timesteps, features]
     X = X.reshape((X.shape[0], X.shape[1], n_features))
@@ -364,67 +350,74 @@ def forecast_Encode_De_LSTM(train_data, n_steps_in, n_steps_out, n_features, uni
     return scaler.inverse_transform(np.expand_dims(forecasted.flatten(), axis=1)), train_time, test_time 
 
 """ executing SARIMA """
-df_test['SARIMA'], train_time, test_time = forecast_SARIMA(df_train["log_adj_close"], df_test["log_adj_close"], 11, 1, 1, 30)
+df_test['SARIMA'], train_time, test_time = forecast_SARIMA(train_data=df_train["log_Passengers"], n_steps_out=30, p=11, d=1, q=1, s=12)
 
 # calculating RMSE
-RMSE = sqrt(mean_squared_error(df_test['Adj Close'], df_test['SARIMA']))
+RMSE = sqrt(mean_squared_error(df_test['Passengers'], df_test['SARIMA']))
 # storing model results 
 Model_results = [['SARIMA', RMSE, train_time, test_time]]
 #Model_results = [['SARIMA', 111.19373835479426, 2167.012885570526, 0.15523123741149902]]
 
+# plotting the Forecasts
+plt.figure(figsize=(14,5))
+plt.plot(df_test["Passengers"], label="Test Data")
+plt.plot(df_test["SARIMA"], color='cyan', label="SARIMA Forecast")
+plt.legend(loc='best')
+plt.tight_layout()
+
 """ executing RNN """ 
-df_test['RNN'], train_time, test_time = forecast_RNN(train_data = df_train["scaled_adj_close"], n_steps_in=50, n_steps_out=30, n_features=1, units=50, epochs=100, activation='tanh', patience_level=5)
+df_test['RNN'], train_time, test_time = forecast_RNN(train_data = df_train["scaled_Passengers"], n_steps_in=50, n_steps_out=30, n_features=1, units=50, epochs=100, activation='tanh', patience_level=5)
 
 # calculating RMSE
-RMSE = sqrt(mean_squared_error(df_test['Adj Close'], df_test['RNN']))
+RMSE = sqrt(mean_squared_error(df_test['Passengers'], df_test['RNN']))
 # storing model results 
 Model_results.append(['RNN', RMSE, train_time, test_time])
 
 """ executing Vanilla_LSTM """
-df_test['Vanilla_LSTM'], train_time, test_time = forecast_Vanilla_LSTM(train_data = df_train["scaled_adj_close"], n_steps_in=50, n_steps_out=30, n_features=1, units=50, epochs=100, activation='relu', patience_level=5)
+df_test['Vanilla_LSTM'], train_time, test_time = forecast_Vanilla_LSTM(train_data = df_train["scaled_Passengers"], n_steps_in=50, n_steps_out=30, n_features=1, units=50, epochs=100, activation='relu', patience_level=5)
 
 # calculating RMSE
-RMSE = sqrt(mean_squared_error(df_test['Adj Close'], df_test['Vanilla_LSTM']))
+RMSE = sqrt(mean_squared_error(df_test['Passengers'], df_test['Vanilla_LSTM']))
 # storing model results 
 Model_results.append(['Vanilla_LSTM', RMSE, train_time, test_time])
 
 """ executing Stacked_LSTM """ 
-df_test['Stacked_LSTM'], train_time, test_time = forecast_Stacked_LSTM(train_data = df_train["scaled_adj_close"], n_steps_in=50, n_steps_out=30, n_features=1, units=50, epochs=100, activation='relu', patience_level=5)
+df_test['Stacked_LSTM'], train_time, test_time = forecast_Stacked_LSTM(train_data = df_train["scaled_Passengers"], n_steps_in=50, n_steps_out=30, n_features=1, units=50, epochs=100, activation='relu', patience_level=5)
 
 # calculating RMSE
-RMSE = sqrt(mean_squared_error(df_test['Adj Close'], df_test['Stacked_LSTM']))
+RMSE = sqrt(mean_squared_error(df_test['Passengers'], df_test['Stacked_LSTM']))
 # storing model results 
 Model_results.append(['Stacked_LSTM', RMSE, train_time, test_time])
 
 """ executing Bidirect_LSTM """ 
-df_test['Bidirect_LSTM'], train_time, test_time = forecast_Bidirect_LSTM(train_data = df_train["scaled_adj_close"], n_steps_in=50, n_steps_out=30, n_features=1, units=50, epochs=100, activation='relu', patience_level=5)
+df_test['Bidirect_LSTM'], train_time, test_time = forecast_Bidirect_LSTM(train_data = df_train["scaled_Passengers"], n_steps_in=50, n_steps_out=30, n_features=1, units=50, epochs=100, activation='relu', patience_level=5)
 
 # calculating RMSE
-RMSE = sqrt(mean_squared_error(df_test['Adj Close'], df_test['Bidirect_LSTM']))
+RMSE = sqrt(mean_squared_error(df_test['Passengers'], df_test['Bidirect_LSTM']))
 # storing model results 
 Model_results.append(['Bidirect_LSTM', RMSE, train_time, test_time])
 
 """ executing CNN_LSTM """ 
-df_test['CNN_LSTM'], train_time, test_time = forecast_CNN_LSTM(train_data = df_train["scaled_adj_close"], n_steps_in=100, n_steps_out=30, n_seq=4, n_features=1, units=50, epochs=100, activation='relu', patience_level=5)
+df_test['CNN_LSTM'], train_time, test_time = forecast_CNN_LSTM(train_data = df_train["scaled_Passengers"], n_steps_in=50, n_steps_out=30, n_seq=2, n_features=1, units=50, epochs=100, activation='relu', patience_level=5)
 
 # calculating RMSE
-RMSE = sqrt(mean_squared_error(df_test['Adj Close'], df_test['CNN_LSTM']))
+RMSE = sqrt(mean_squared_error(df_test['Passengers'], df_test['CNN_LSTM']))
 # storing model results 
 Model_results.append(['CNN_LSTM', RMSE, train_time, test_time])
 
 """ executing Encode_De_LSTM """ 
-df_test['Encode_De_LSTM'], train_time, test_time = forecast_Encode_De_LSTM(train_data = df_train["scaled_adj_close"], n_steps_in=50, n_steps_out=30, n_features=1, units=50, epochs=100, activation='relu', patience_level=5)
+df_test['Encode_De_LSTM'], train_time, test_time = forecast_Encode_De_LSTM(train_data = df_train["scaled_Passengers"], n_steps_in=50, n_steps_out=30, n_features=1, units=50, epochs=100, activation='relu', patience_level=5)
 
 # calculating RMSE
-RMSE = sqrt(mean_squared_error(df_test['Adj Close'], df_test['Encode_De_LSTM']))
+RMSE = sqrt(mean_squared_error(df_test['Passengers'], df_test['Encode_De_LSTM']))
 # storing model results 
 Model_results.append(['Encode_De_LSTM', RMSE, train_time, test_time])
 
 """ Evaluation """
 
 # plotting the Forecasts
-plt.figure(figsize=(14,5))
-plt.plot(df_test["Adj Close"], label="Test Data")
+plt.figure(figsize=(14,8))
+plt.plot(df_test["Passengers"], label="Test Data")
 plt.plot(df_test["SARIMA"], color='cyan', label="SARIMA Forecast")
 plt.plot(df_test["RNN"], color='lawngreen', label="RNN Forecast")
 plt.plot(df_test["Vanilla_LSTM"], color='pink', label="Vanilla LSTM Forecast")
@@ -433,6 +426,7 @@ plt.plot(df_test["Bidirect_LSTM"], color='violet', label="Bidirectional LSTM For
 plt.plot(df_test["CNN_LSTM"], color='brown', label="CNN LSTM Forecast")
 plt.plot(df_test["Encode_De_LSTM"], color='teal', label="Encoder Decoder LSTM Forecast")
 plt.legend(loc='best')
+plt.title("Model Output: Actual vs Forecasted")
 plt.tight_layout()
 
 df_results = pd.DataFrame(Model_results, columns=["Model","RMSE","Train_time","Test_time"])
@@ -441,9 +435,36 @@ df_results = pd.DataFrame(Model_results, columns=["Model","RMSE","Train_time","T
 plt.figure(figsize=(8,5))
 plt.bar(df_results['Model'],df_results['RMSE'])
 plt.legend(loc='best')
+plt.title("Model Accuracy: RMSE")
+plt.xticks(rotation = 45)
 plt.tight_layout()
 
-print(df_results)
+df_results.to_csv(r"C:\Git\Time-Series-Forecasting\Data\raw\Parts\AirPassengers_Output_1.csv", index=False)
+
+df_test.to_csv(r"C:\Git\Time-Series-Forecasting\Data\raw\Parts\AirPassengers_Predictions_1.csv", index=False)
+
+""" Results & Plots """ 
+
+# Forecasted Subplots
+df_pred = pd.read_csv(r"C:\Git\Time-Series-Forecasting\Data\raw\Parts\AirPassengers_Predictions_1.csv")
+
+fig, (ax1, ax2) = plt.subplots(1, 2, sharey=True, figsize=(10,6))
+
+ax1.plot(df_pred["Passengers"], color='blue', linestyle='dotted')
+ax1.plot(df_pred["SARIMA"], color='black')
+ax1.set_title('SARIMA', fontsize=16)
+
+ax2.plot(df_pred["Passengers"], color='blue', linestyle='dotted', label='Forecasted')
+ax2.plot(df_pred["Stacked_LSTM"], color='black', label='Forecasted')
+ax2.set_title('Stacked LSTM', fontsize=16)
+
+ax2.legend(bbox_to_anchor=(1, 1), fontsize=14) # legend
+
+ax1.set_xlabel('No of Months', fontsize=14)
+ax1.set_ylabel('No of Passengers', fontsize=14)
+ax2.set_xlabel('No of Months', fontsize=14)
+
+
 
 """ 
 *** Observations ***
