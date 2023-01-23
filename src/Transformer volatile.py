@@ -32,7 +32,6 @@
 import datetime
 import pandas as pd
 import matplotlib.pyplot as plt
-from pandas_datareader import data
 import tensorflow as tf
 import pandas as pd  
 import numpy as np
@@ -50,6 +49,8 @@ import torch.nn.functional as F
 
 from sklearn.metrics import mean_squared_error
 
+torch.cuda.is_available()
+
 
 seaborn.set_context(context="talk")
 
@@ -57,7 +58,7 @@ seaborn.set_context(context="talk")
 # ## Generate Train and Test
 
 # %%
-SNP = pd.read_csv('./SNPTSX.csv', parse_dates=['Date'])
+SNP = pd.read_csv(r"C:\Git\Time-Series-Forecasting\Data\raw\SNPTSX.csv", parse_dates=['Date'])
 SNP.drop(columns=['Open', 'High', 'Low', 'Close', 'Volume'], inplace=True)
 
 # %%
@@ -501,8 +502,12 @@ def greedy_decode(model, src, src_mask, max_len, start_symbol):
     return prob
 
 # %%
+<<<<<<< Updated upstream
 # save model
 PATH = './pytorch_time_series_model_loss_OK_norm.pth'
+=======
+PATH = r"C:\Git\Time-Series-Forecasting\Data\raw\pytorch_time_series_model_loss_OK_norm.pth"
+>>>>>>> Stashed changes
 
 torch.save(model.state_dict(), PATH)
 
