@@ -81,7 +81,7 @@ df_pred_sc[["Encode_De_LSTM"]] = min_max.transform(df_pred[["Encode_De_LSTM"]])
 df_pred_sc.index += 1
 
 #fig, axs = plt.subplots(2, 4, sharey=True, figsize=(35,7))
-fig, (ax1, ax2, ax3, ax4, ax5, ax6, ax7) = plt.subplots(1, 7, sharey=True, figsize=(35,7))
+fig, (ax1, ax2, ax3, ax4, ax5, ax6, ax7) = plt.subplots(1, 7, sharey=True, figsize=(65,14))
 
 ax1.plot(df_pred_sc["Adj Close"], color='darkorange', linestyle='dotted', linewidth=6.0, label='Actual')
 ax1.plot(df_pred_sc["SARIMA"], color='limegreen', linewidth=3.0, label='Forecasted')
